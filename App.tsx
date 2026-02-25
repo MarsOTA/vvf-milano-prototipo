@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
@@ -5,58 +6,51 @@ import { StaffView } from './components/StaffView';
 import { TemplateCreator } from './components/TemplateCreator';
 import { OlympicGenerator } from './components/OlympicGenerator';
 import { LoginScreen } from './components/LoginScreen';
-import { ScreenType, UserRole, OperationalEvent, Operator } from './types';
-import { MOCK_EVENTS, MOCK_OPERATORS } from './constants';
-import {
-  loadEvents,
-  saveEvents,
-  loadOperators,
-  saveOperators,
-  loadSession,
-  saveSession,
-  clearSession,
-  loadSelectedDate,
-  saveSelectedDate,
-} from './utils/storage';
+import { ScreenType, UserRole, OperationalEvent } from './types';
+import { MOCK_EVENTS } from './constants';
 
 const App: React.FC = () => {
-  const session = loadSession();
-
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!session);
-  const [activeScreen, setActiveScreen] = useState<ScreenType>('DASHBOARD');
-  const [currentRole, setCurrentRole] = useState<UserRole>(() => session?.role || 'COMPILATORE_A');
-
-  const [currentDate, setCurrentDate] = useState('');
-
-  // Dati principali persistenti (LocalStorage)
-  const [events, setEvents] = useState<OperationalEvent[]>(() => loadEvents(MOCK_EVENTS));
-  const [operators, setOperators] = useState<Operator[]>(() => loadOperators(MOCK_OPERATORS));
-
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    const evs = loadEvents(MOCK_EVENTS);
-    const fallback = evs[0]?.date || new Date().toISOString().split('T')[0];
-    return loadSelectedDate(fallback);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('vvf_auth') === 'true';
   });
-
+  const [activeScreen, setActiveScreen] = useState<ScreenType>('DASHBOARD');
+  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
+    return (localStorage.getItem('vvf_role') as UserRole) || 'COMPILATORE_A';
+  });
+  const [currentDate, setCurrentDate] = useState('');
+  const [events, setEvents] = useState<OperationalEvent[]>(() => {
+    try {
+      const saved = localStorage.getItem('vvf_events');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error("Error loading events from localStorage", e);
+    }
+    return MOCK_EVENTS;
+  });
+  const [selectedDate, setSelectedDate] = useState(() => {
+    try {
+      return localStorage.getItem('vvf_selected_date') || '2026-02-17';
+    } catch (e) {
+      return '2026-02-17';
+    }
+  });
   const [editingEvent, setEditingEvent] = useState<OperationalEvent | null>(null);
 
-  // Persistenza eventi/operatori/selectedDate
   useEffect(() => {
-    saveEvents(events);
+    localStorage.setItem('vvf_events', JSON.stringify(events));
   }, [events]);
 
   useEffect(() => {
-    saveOperators(operators);
-  }, [operators]);
+    localStorage.setItem('vvf_auth', isAuthenticated.toString());
+    localStorage.setItem('vvf_role', currentRole);
+  }, [isAuthenticated, currentRole]);
 
   useEffect(() => {
-    saveSelectedDate(selectedDate);
+    localStorage.setItem('vvf_selected_date', selectedDate);
   }, [selectedDate]);
-
-  // Persistenza sessione (ruolo)
-  useEffect(() => {
-    if (isAuthenticated) saveSession(currentRole);
-  }, [currentRole, isAuthenticated]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -74,12 +68,10 @@ const App: React.FC = () => {
   const handleLogin = (role: UserRole) => {
     setCurrentRole(role);
     setIsAuthenticated(true);
-    saveSession(role);
     setActiveScreen('DASHBOARD');
   };
 
   const handleLogout = () => {
-    clearSession();
     setIsAuthenticated(false);
     setActiveScreen('DASHBOARD');
     setEditingEvent(null);
@@ -87,7 +79,7 @@ const App: React.FC = () => {
 
   const handleSaveEvent = (newEvent: OperationalEvent) => {
     if (editingEvent) {
-      setEvents(prev => prev.map(ev => (ev.id === newEvent.id ? newEvent : ev)));
+      setEvents(prev => prev.map(ev => ev.id === newEvent.id ? newEvent : ev));
     } else {
       setEvents(prev => [newEvent, ...prev]);
     }
@@ -117,13 +109,13 @@ const App: React.FC = () => {
 
   return (
     <div className="h-full w-full font-sans antialiased text-slate-700">
-      <Layout
-        activeScreen={activeScreen}
+      <Layout 
+        activeScreen={activeScreen} 
         setScreen={(s) => {
           if (s === 'CREAZIONE') handleNavigateToCreate();
           else setActiveScreen(s);
-        }}
-        role={currentRole}
+        }} 
+        role={currentRole} 
         setRole={setCurrentRole}
         onLogout={handleLogout}
         date={currentDate}
@@ -132,29 +124,22 @@ const App: React.FC = () => {
         setSelectedDate={setSelectedDate}
       >
         {activeScreen === 'DASHBOARD' && (
-          <Dashboard
-            events={events}
-            setEvents={setEvents}
-            operators={operators}
-            role={currentRole}
-            selectedDate={selectedDate}
+          <Dashboard 
+            events={events} 
+            setEvents={setEvents} 
+            role={currentRole} 
+            selectedDate={selectedDate} 
             setSelectedDate={setSelectedDate}
             onEditEvent={handleStartEdit}
           />
         )}
-        {activeScreen === 'STAFF' && (
-          <StaffView
-            events={events}
-            operators={operators}
-            setOperators={setOperators}
-          />
-        )}
+        {activeScreen === 'STAFF' && <StaffView events={events} />}
         {activeScreen === 'CREAZIONE' && (
-          <TemplateCreator
-            onSave={handleSaveEvent}
+          <TemplateCreator 
+            onSave={handleSaveEvent} 
             onCancel={handleCancelEdit}
-            defaultDate={selectedDate}
-            initialEvent={editingEvent || undefined}
+            defaultDate={selectedDate} 
+            initialEvent={editingEvent || undefined} 
           />
         )}
         {activeScreen === 'GENERATORE' && <OlympicGenerator />}
