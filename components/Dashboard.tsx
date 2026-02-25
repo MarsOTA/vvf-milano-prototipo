@@ -1577,8 +1577,8 @@ const AssignmentPopup: React.FC<{
         const opSpecs = op.specializations || [];
         const hasNone = opSpecs.length === 0;
 
-        const matchesNone = specFilters.includes('NONE') && hasNone;
-        const matchesOthers = specFilters.some(s => s !== 'NONE' && opSpecs.includes(s));
+        const matchesNone = specFilters.includes('SENZA QUALIFICA') && hasNone;
+        const matchesOthers = specFilters.some(s => s !== 'SENZA QUALIFICA' && opSpecs.includes(s));
 
         return matchesNone || matchesOthers;
       });
@@ -1683,16 +1683,6 @@ const AssignmentPopup: React.FC<{
                {showSpecDropdown && (
                  <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[110] animate-in slide-in-from-top-2 zoom-in-95 overflow-hidden">
                    <div className="max-h-60 overflow-y-auto scrollbar-thin">
-                     <label className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group">
-                       <input 
-                         type="checkbox" 
-                         checked={specFilters.includes('NONE')} 
-                         onChange={() => toggleSpecFilter('NONE')}
-                         className="w-4 h-4 rounded border-slate-300 text-[#720000] focus:ring-[#720000]"
-                       />
-                       <span className="text-[10px] font-black uppercase text-slate-600 group-hover:text-[#720000]">Nessuna Spec.</span>
-                     </label>
-                     <div className="h-px bg-slate-100 my-1 mx-2"></div>
                      {ALL_SPECIALIZATIONS.map(spec => (
                        <label key={spec} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group">
                          <input 
