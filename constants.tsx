@@ -14,7 +14,18 @@ export const ALL_PATENTI = [
 ];
 
 export const ALL_SPECIALIZATIONS = [
-  "TAS2", "NBCR", "NBCR L.2", "USR-M", "USR-L", "NBCR L.3", "SMZ", "M.TERRA", "CINO"
+  "SENZA QUALIFICA",
+  "TAS2",
+  "USAR-L",
+  "NBCR",
+  "NBCR-L1",
+  "NBCR-L2",
+  "NBCR-L3",
+  "USAR-M",
+  "SMZ",
+  "M-TERRA",
+  "NBCR-L0",
+  "CINO"
 ];
 
 export const MOCK_OPERATORS: Operator[] = [
