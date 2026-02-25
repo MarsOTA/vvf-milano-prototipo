@@ -294,7 +294,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
     events.forEach(ev => {
       const duration = getServiceDurationHours(ev.timeWindow);
       ev.requirements.forEach(req => {
-        req.assignedIds.forEach(id => {
+        (req.assignedIds || []).forEach(id => {
           if (id && hoursMap[id] !== undefined) {
             hoursMap[id] += duration;
           }
@@ -414,7 +414,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
     displayEvents.forEach(ev => {
       ev.requirements.forEach(req => {
         if (req.role in stats) {
-          stats[req.role].assigned += req.assignedIds.filter(Boolean).length;
+          stats[req.role].assigned += (req.assignedIds || []).filter(Boolean).length;
           stats[req.role].total += req.qty;
         }
       });
@@ -449,7 +449,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
         servizi: displayEvents.map(ev => {
           const operatoriListone: any[] = [];
           ev.requirements.forEach(req => {
-            req.assignedIds.forEach(id => {
+            (req.assignedIds || []).forEach(id => {
               if (id) {
                 if (operatoriListone.some(o => o.id === id)) return;
                 const op = operators.find(o => o.id === id);
@@ -853,7 +853,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
       const newReqs = [...ev.requirements];
       const targetReq = { ...newReqs[reqIndex] };
       
-      const newAssigned = [...targetReq.assignedIds];
+      const newAssigned = Array.isArray(targetReq.assignedIds)
+        ? [...targetReq.assignedIds]
+        : Array(targetReq.qty).fill(null);
+      while (newAssigned.length < targetReq.qty) newAssigned.push(null);
       newAssigned[slotIndex] = operatorId;
       targetReq.assignedIds = newAssigned;
       
@@ -900,7 +903,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
       targetReq.entrustedGroups = newEntrusted;
       
       // Quando si passa la gestione, resettiamo per permettere al subentrante di scegliere.
-      const newAssigned = [...targetReq.assignedIds];
+      const newAssigned = Array.isArray(targetReq.assignedIds)
+        ? [...targetReq.assignedIds]
+        : Array(targetReq.qty).fill(null);
+      while (newAssigned.length < targetReq.qty) newAssigned.push(null);
       newAssigned[slotIndex] = null;
       targetReq.assignedIds = newAssigned;
       
@@ -1156,6 +1162,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
           <EventCard 
             key={event.id} 
             event={event} 
+            operators={operators}
             role={role}
             dayApproved={dayApprovedState}
             isExpanded={expandedIds.includes(event.id)}
@@ -1183,6 +1190,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
           assignedIds={events.find(e => e.id === assignmentModal.eventId)?.requirements[assignmentModal.reqIndex].assignedIds || []}
           slotIndex={assignmentModal.slotIndex}
           events={events}
+          operators={operators}
           allCalculatedHours={operatorsCalculatedHours}
         />
       )}
@@ -1213,6 +1221,7 @@ const getHeaderStyles = (type: VigilanceType | undefined) => {
 
 const EventCard: React.FC<{
   event: OperationalEvent;
+  operators: Operator[];
   role: UserRole;
   dayApproved: boolean;
   isExpanded: boolean;
@@ -1224,7 +1233,7 @@ const EventCard: React.FC<{
   completionPercent: number;
   licenseAlert: string | null;
   allCalculatedHours: Record<string, number>;
-}> = ({ event, role, dayApproved, isExpanded, onToggle, onOpenAssignment, onRemoveAssignment, onDeleteRequest, onEdit, completionPercent, licenseAlert, allCalculatedHours }) => {
+}> = ({ event, operators, role, dayApproved, isExpanded, onToggle, onOpenAssignment, onRemoveAssignment, onDeleteRequest, onEdit, completionPercent, licenseAlert, allCalculatedHours }) => {
   const currentCompilatoreGroup = role.startsWith('COMPILATORE') ? role.split('_')[1] : null;
   const isCompilatore = !!currentCompilatoreGroup;
   const isRedattore = role === 'REDATTORE';
@@ -1299,7 +1308,7 @@ const EventCard: React.FC<{
         {event.requirements.map((req, reqIdx) => {
           if (req.qty === 0) return null; 
           return Array.from({ length: req.qty }).map((_, unitIdx) => {
-            const assignedId = req.assignedIds[unitIdx];
+            const assignedId = req.assignedIds?.[unitIdx] ?? null;
             const operator = assignedId ? operators.find(o => o.id === assignedId) : null;
             const entrustedTo = req.entrustedGroups?.[unitIdx];
             const slotOwner = entrustedTo || (priorityChain ? priorityChain[0] : 'A');
@@ -1455,9 +1464,9 @@ const TriangleAlertIcon = ({ className }: { className?: string }) => (
 const AssignmentPopup: React.FC<{
   eventId: string; roleName: string; userRole: UserRole; onClose: () => void;
   onAssign: (id: string) => void; onEntrust: (currentOwner: string) => void; onRevokeEntrust: () => void;
-  assignedIds: (string | null)[]; slotIndex: number; events: OperationalEvent[];
+  assignedIds: (string | null)[]; slotIndex: number; events: OperationalEvent[]; operators: Operator[];
   allCalculatedHours: Record<string, number>;
-}> = ({ eventId, roleName, userRole, onClose, onAssign, onEntrust, onRevokeEntrust, assignedIds, slotIndex, events, allCalculatedHours }) => {
+}> = ({ eventId, roleName, userRole, onClose, onAssign, onEntrust, onRevokeEntrust, assignedIds, slotIndex, events, operators, allCalculatedHours }) => {
   const [search, setSearch] = useState('');
   const [specFilters, setSpecFilters] = useState<string[]>([]);
   const [showSpecDropdown, setShowSpecDropdown] = useState(false);
@@ -1486,7 +1495,7 @@ const AssignmentPopup: React.FC<{
     const assignments = new Map<string, OperationalEvent[]>();
     events.filter(ev => ev.date === date).forEach(ev => {
       ev.requirements.forEach(req => {
-        req.assignedIds.forEach(id => {
+        (req.assignedIds || []).forEach(id => {
           if (id) {
             const list = assignments.get(id) || [];
             assignments.set(id, [...list, ev]);
