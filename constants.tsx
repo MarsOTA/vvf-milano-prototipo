@@ -18,7 +18,7 @@ export const ALL_SPECIALIZATIONS = [
 ];
 
 export const MOCK_OPERATORS: Operator[] = [
-  // GRUPPO A
+// GRUPPO A
   { id: 'CQE-A', name: 'ABRI ALESSANDRO', rank: 'CQE', group: 'A', subgroup: 'A8', qualification: 'CP', available: true, assignedHours: 0, specializations: ['USAR-L'], sede: 'Centrale', tipoPatente: '4' },
   { id: 'VESC-A', name: 'ADAMO VINCENZO', rank: 'VESC', group: 'A', subgroup: 'A4', qualification: 'VIG', available: true, assignedHours: 0, specializations: [], sede: 'Sesto San Giovanni', tipoPatente: '1' },
   { id: 'VESC-A-B', name: 'ALECCIA ALESSANDRO', rank: 'VESC', group: 'A', subgroup: 'A7', qualification: 'VIG', available: true, assignedHours: 0, specializations: [], sede: 'Rho', tipoPatente: '1' },
