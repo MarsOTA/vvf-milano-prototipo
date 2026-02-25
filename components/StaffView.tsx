@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { ALL_SEDI } from '../constants';
+import { MOCK_OPERATORS, ALL_SEDI } from '../constants';
 import { Operator, OperationalEvent } from '../types';
 import { SEQ } from '../utils/turnarioLogic';
 
@@ -43,10 +43,10 @@ const UserCheckIcon = ({ className }: { className?: string }) => (
 
 interface StaffViewProps {
   events?: OperationalEvent[];
-  operators: Operator[];
-  setOperators: React.Dispatch<React.SetStateAction<Operator[]>>;
 }
-export const StaffView: React.FC<StaffViewProps> = ({ events = [], operators, setOperators }) => {
+
+export const StaffView: React.FC<StaffViewProps> = ({ events = [] }) => {
+  const [operators, setOperators] = useState<Operator[]>(MOCK_OPERATORS || []);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedOp, setSelectedOp] = useState<Operator | null>(null);
   
@@ -63,9 +63,13 @@ export const StaffView: React.FC<StaffViewProps> = ({ events = [], operators, se
   // FIX: Calcolo dinamico del carico ore basato sugli eventi attivi
   const dynamicHoursMap = useMemo(() => {
     const map: Record<string, number> = {};
+    if (!Array.isArray(events)) return map;
+    
     events.forEach(ev => {
+      if (!ev || !ev.requirements || !Array.isArray(ev.requirements)) return;
       const duration = getServiceDurationHours(ev.timeWindow);
       ev.requirements.forEach(req => {
+        if (!req || !req.assignedIds || !Array.isArray(req.assignedIds)) return;
         req.assignedIds.forEach(id => {
           if (id) {
             map[id] = (map[id] || 0) + duration;
@@ -77,12 +81,13 @@ export const StaffView: React.FC<StaffViewProps> = ({ events = [], operators, se
   }, [events]);
 
   useEffect(() => {
+    if (!Array.isArray(operators)) return;
     const todayStr = new Date().toISOString().split('T')[0];
-    const needsUpdate = operators.some(op => !op.available && op.unavailabilityEndDate && op.unavailabilityEndDate < todayStr);
+    const needsUpdate = operators.some(op => op && !op.available && op.unavailabilityEndDate && op.unavailabilityEndDate < todayStr);
     
     if (needsUpdate) {
       setOperators(prev => prev.map(op => {
-        if (!op.available && op.unavailabilityEndDate && op.unavailabilityEndDate < todayStr) {
+        if (op && !op.available && op.unavailabilityEndDate && op.unavailabilityEndDate < todayStr) {
           return { ...op, available: true, statusMessage: undefined, unavailabilityEndDate: undefined };
         }
         return op;
@@ -142,8 +147,12 @@ export const StaffView: React.FC<StaffViewProps> = ({ events = [], operators, se
   };
 
   const filteredOperators = useMemo(() => {
+    if (!Array.isArray(operators)) return [];
     return operators.filter(op => {
-      const matchesSearch = op.name.toLowerCase().includes(search.toLowerCase()) || op.id.toLowerCase().includes(search.toLowerCase());
+      if (!op) return false;
+      const name = op.name || '';
+      const id = op.id || '';
+      const matchesSearch = name.toLowerCase().includes(search.toLowerCase()) || id.toLowerCase().includes(search.toLowerCase());
       const matchesGroup = groupFilter === 'TUTTI' || op.subgroup === groupFilter;
       const matchesSede = sedeFilter === 'TUTTE' || op.sede === sedeFilter;
       return matchesSearch && matchesGroup && matchesSede;
@@ -151,7 +160,9 @@ export const StaffView: React.FC<StaffViewProps> = ({ events = [], operators, se
   }, [operators, search, groupFilter, sedeFilter]);
 
   return (
-    <div className="p-8 max-w-[1700px] mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="p-8 max-w-[1700px] mx-auto space-y-8">
+      {/* Debug: verify component is rendering */}
+      <div className="hidden">STAFF_VIEW_ACTIVE</div>
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tighter leading-none">Anagrafica Personale</h1>
@@ -172,7 +183,7 @@ export const StaffView: React.FC<StaffViewProps> = ({ events = [], operators, se
                   className="bg-transparent text-xs font-black uppercase focus:outline-none cursor-pointer text-[#720000]"
                 >
                   <option value="TUTTI">TUTTI I GRUPPI</option>
-                  {SEQ.map(code => (
+                  {(SEQ || []).map(code => (
                     <option key={code} value={code}>{code}</option>
                   ))}
                 </select>
@@ -222,6 +233,7 @@ export const StaffView: React.FC<StaffViewProps> = ({ events = [], operators, se
             </thead>
             <tbody className="divide-y divide-slate-50 bg-white">
               {filteredOperators.map(op => {
+                if (!op || !op.id) return null;
                 // Calcolo dinamico finale delle ore per la riga corrente
                 const totalHours = (op.assignedHours || 0) + (dynamicHoursMap[op.id] || 0);
                 
