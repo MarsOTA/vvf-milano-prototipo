@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ALL_SPECIALIZATIONS, ALL_SEDI, ALL_PATENTI } from '../constants';
+import { MOCK_OPERATORS, ALL_SPECIALIZATIONS, ALL_SEDI, ALL_PATENTI } from '../constants';
 import { OperationalEvent, EventStatus, UserRole, PersonnelRequirement, VehicleEntry, VigilanceType, Operator } from '../types';
 import { getMainDayCode, getPriorityChain, selectableForVigilanza } from '../utils/turnarioLogic';
 import { openRapportoPresenza } from '../utils/rapportoPresenza';
@@ -261,13 +261,13 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ count
 interface DashboardProps {
   events: OperationalEvent[];
   setEvents: React.Dispatch<React.SetStateAction<OperationalEvent[]>>;
-  operators: Operator[];
   role: UserRole;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   onEditEvent: (event: OperationalEvent) => void;
 }
-export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operators, role, selectedDate, setSelectedDate, onEditEvent }) => {
+
+export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, selectedDate, setSelectedDate, onEditEvent }) => {
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [assignmentModal, setAssignmentModal] = useState<{ eventId: string, roleName: string, reqIndex: number, slotIndex: number } | null>(null);
   const [deleteRequest, setDeleteRequest] = useState<string[] | null>(null);
@@ -286,7 +286,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
     const hoursMap: Record<string, number> = {};
     
     // Inizializza con le ore di base dai mock
-    operators.forEach(op => {
+    MOCK_OPERATORS.forEach(op => {
       hoursMap[op.id] = op.assignedHours;
     });
 
@@ -294,7 +294,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
     events.forEach(ev => {
       const duration = getServiceDurationHours(ev.timeWindow);
       ev.requirements.forEach(req => {
-        (req.assignedIds || []).forEach(id => {
+        req.assignedIds.forEach(id => {
           if (id && hoursMap[id] !== undefined) {
             hoursMap[id] += duration;
           }
@@ -303,7 +303,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
     });
 
     return hoursMap;
-  }, [events, operators]);
+  }, [events]);
 
   useEffect(() => {
     const isApproved = localStorage.getItem(`approvedDay_${selectedDate}`) === 'true';
@@ -355,7 +355,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
 
     // Recupero operatori assegnati
     const assignedOperatorIds = ev.requirements.flatMap(r => r.assignedIds.filter(Boolean)) as string[];
-    const assignedOperators = assignedOperatorIds.map(id => operators.find(o => o.id === id)).filter(Boolean) as Operator[];
+    const assignedOperators = assignedOperatorIds.map(id => MOCK_OPERATORS.find(o => o.id === id)).filter(Boolean) as Operator[];
 
     const hasValidDriver = assignedOperators.some(op => {
       const gradeStr = op.tipoPatente || '0';
@@ -414,7 +414,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
     displayEvents.forEach(ev => {
       ev.requirements.forEach(req => {
         if (req.role in stats) {
-          stats[req.role].assigned += (req.assignedIds || []).filter(Boolean).length;
+          stats[req.role].assigned += req.assignedIds.filter(Boolean).length;
           stats[req.role].total += req.qty;
         }
       });
@@ -439,117 +439,155 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
   };
 
   const handleDownloadPDF = async () => {
+    if (displayEvents.length === 0) {
+      alert("Nessun servizio da esportare per la data selezionata.");
+      return;
+    }
+
     setIsPdfLoading(true);
-    let data: any = null;
     try {
-      data = {
-        utente: role,
-        comando: "MILANO",
-        data_giorno: selectedDate,
-        servizi: displayEvents.map(ev => {
-          const operatoriListone: any[] = [];
-          ev.requirements.forEach(req => {
-            (req.assignedIds || []).forEach(id => {
-              if (id) {
-                if (operatoriListone.some(o => o.id === id)) return;
-                const op = operators.find(o => o.id === id);
-                if (op) {
+      // Create a hidden container for rendering
+      const printContainer = document.createElement('div');
+      printContainer.id = 'pdf-print-container';
+      printContainer.style.position = 'fixed';
+      printContainer.style.left = '-9999px';
+      printContainer.style.top = '0';
+      printContainer.style.width = '210mm'; // A4 width
+      printContainer.style.backgroundColor = 'white';
+      printContainer.style.color = 'black';
+      printContainer.style.fontFamily = 'Arial, sans-serif';
+      printContainer.style.padding = '10mm';
+      document.body.appendChild(printContainer);
+
+      // Helper to format date
+      const fmtDate = (iso: string) => {
+        const [y, m, d] = iso.split('-');
+        return `${d}/${m}/${y}`;
+      };
+
+      // Build HTML content (similar to listone.html)
+      let html = `
+        <div style="width: 100%; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div style="font-size: 10pt; font-weight: bold; width: 150px;">UTENTE: ${role}</div>
+            <div style="text-align: center; flex: 1;">
+              <div style="font-size: 12pt; font-weight: bold; text-transform: uppercase;">Ministero dell'Interno</div>
+              <div style="font-size: 12pt; font-weight: bold; text-transform: uppercase;">Comando VV.F. MILANO</div>
+              <div style="font-size: 8pt; margin-top: 4px;">DIPARTIMENTO DEI VIGILI DEL FUOCO DEL SOCCORSO PUBBLICO E DELLA DIFESA CIVILE</div>
+            </div>
+            <div style="font-size: 10pt; font-weight: bold; width: 150px; text-align: right;">DATA: ${fmtDate(selectedDate)}</div>
+          </div>
+        </div>
+      `;
+
+      displayEvents.forEach((ev, idx) => {
+        const startTime = ev.timeWindow.split(' - ')[0];
+        const endTime = ev.timeWindow.split(' - ')[1];
+        const [h1, m1] = startTime.split(':').map(Number);
+        const [h2, m2] = endTime.split(':').map(Number);
+        let diff = (h2 * 60 + (m2 || 0)) - (h1 * 60 + (m1 || 0));
+        if (diff <= 0) diff += 24 * 60;
+        const durH = Math.floor(diff / 60);
+        const durM = diff % 60;
+        const durata_tot = `${String(durH).padStart(3, '0')}:${String(durM).padStart(2, '0')}`;
+        const dayCode = getMainDayCode(new Date(ev.date + 'T00:00:00'));
+
+        html += `
+          <div style="border: 1px solid #000; margin-bottom: 20px; padding: 10px; page-break-inside: avoid;">
+            <div style="background-color: #f0f0f0; padding: 6px; border-bottom: 1px solid #000; font-weight: bold; font-size: 11pt; text-transform: uppercase;">
+              ${ev.code} ${ev.committente ? '- ' + ev.committente : ''}
+            </div>
+            <div style="padding: 6px; border-bottom: 1px solid #eee; font-style: italic; font-size: 10pt;">
+              ${ev.location} - ${ev.committente || 'N/D'} - ${ev.code}
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 8px; border-bottom: 1px solid #eee; font-size: 9pt;">
+              <div><b style="display: block; font-size: 7pt; color: #666; text-transform: uppercase;">Data Inizio</b> ${fmtDate(ev.date)} ${startTime}</div>
+              <div><b style="display: block; font-size: 7pt; color: #666; text-transform: uppercase;">Data Fine</b> ${fmtDate(ev.date)} ${endTime}</div>
+              <div><b style="display: block; font-size: 7pt; color: #666; text-transform: uppercase;">Intervento</b> ${fmtDate(ev.date)} ${startTime}</div>
+              <div><b style="display: block; font-size: 7pt; color: #666; text-transform: uppercase;">Progr./Anno</b> ${ev.id.replace(/\D/g, '') || '0'}/${new Date(ev.date).getFullYear()}</div>
+            </div>
+
+            <div style="background-color: #000; color: #fff; padding: 4px 15px; font-weight: bold; font-size: 9pt; display: flex; justify-content: space-between; margin: 6px 0;">
+              <span>SERVIZIO DI VIGILANZA ANTINCENDIO</span>
+              <span>STATO: ${ev.status} - TURNO: ${dayCode}</span>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+              <thead>
+                <tr style="border-bottom: 1px solid #000;">
+                  <th style="text-align: left; font-size: 8pt; padding: 4px;">Cognome</th>
+                  <th style="text-align: left; font-size: 8pt; padding: 4px;">Nome</th>
+                  <th style="text-align: left; font-size: 8pt; padding: 4px;">Qualifica</th>
+                  <th style="text-align: left; font-size: 8pt; padding: 4px;">Sede</th>
+                  <th style="text-align: right; font-size: 8pt; padding: 4px;">Ore</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${ev.requirements.flatMap(req => req.assignedIds.filter(Boolean).map(id => {
+                  const op = MOCK_OPERATORS.find(o => o.id === id);
+                  if (!op) return '';
                   const nameParts = op.name.split(' ');
                   const cognome = nameParts[0];
                   const nome = nameParts.slice(1).join(' ');
-                  
-                  const [h1, m1] = ev.timeWindow.split(' - ')[0].split(':').map(Number);
-                  const [h2, m2] = ev.timeWindow.split(' - ')[1].split(':').map(Number);
-                  let diff = (h2 * 60 + (m2 || 0)) - (h1 * 60 + (m1 || 0));
-                  if (diff <= 0) diff += 24 * 60;
-                  const durH = Math.floor(diff / 60);
-                  const durM = diff % 60;
-                  const ore = `${String(durH).padStart(3, '0')}:${String(durM).padStart(2, '0')}`;
+                  return `
+                    <tr style="border-bottom: 1px dotted #ccc;">
+                      <td style="padding: 4px; font-size: 9pt; text-transform: uppercase;">${cognome}</td>
+                      <td style="padding: 4px; font-size: 9pt; text-transform: uppercase;">${nome}</td>
+                      <td style="padding: 4px; font-size: 9pt;">${op.rank}</td>
+                      <td style="padding: 4px; font-size: 9pt;">${op.sede || 'N/D'}</td>
+                      <td style="padding: 4px; font-size: 9pt; text-align: right;">${durata_tot}</td>
+                    </tr>
+                  `;
+                })).join('')}
+              </tbody>
+            </table>
 
-                  operatoriListone.push({
-                    id,
-                    cognome,
-                    nome,
-                    qualifica: op.rank,
-                    sede: op.sede || 'N/D',
-                    ore
-                  });
-                }
-              }
-            });
-          });
-
-          const [h1, m1] = ev.timeWindow.split(' - ')[0].split(':').map(Number);
-          const [h2, m2] = ev.timeWindow.split(' - ')[1].split(':').map(Number);
-          let diff = (h2 * 60 + (m2 || 0)) - (h1 * 60 + (m1 || 0));
-          if (diff <= 0) diff += 24 * 60;
-          const durH = Math.floor(diff / 60);
-          const durM = diff % 60;
-          const durata_tot = `${String(durH).padStart(3, '0')}:${String(durM).padStart(2, '0')}`;
-
-          return {
-            progr: ev.id.replace(/\D/g, '') || '0',
-            anno: new Date(ev.date).getFullYear(),
-            luogo: ev.location,
-            richiedente: ev.committente || 'N/D',
-            manifestazione: ev.code,
-            data_inizio: ev.date,
-            ora_inizio: ev.timeWindow.split(' - ')[0],
-            data_fine: ev.date,
-            ora_fine: ev.timeWindow.split(' - ')[1],
-            data_intervento: ev.date,
-            orario_intervento: ev.timeWindow.split(' - ')[0],
-            tipo_servizio: "SERVIZIO DI VIGILANZA ANTINCENDIO",
-            stato: ev.status,
-            turno: getMainDayCode(new Date(ev.date + 'T00:00:00')),
-            operatori: operatoriListone,
-            durata_tot
-          };
-        })
-      };
-
-      const response = await fetch('/api/generate-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+            <div style="text-align: right; font-weight: bold; margin-top: 10px; font-size: 10pt;">
+              Durata tot. ${durata_tot}
+            </div>
+          </div>
+        `;
       });
 
-      if (!response.ok) throw new Error('Errore generazione PDF');
+      printContainer.innerHTML = html;
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Listone_VVF_MILANO_${selectedDate}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("PDF Export Error:", err);
+      // Use html2canvas to capture the container
+      const canvas = await html2canvas(printContainer, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
 
-      // Fallback (solo frontend): apre una pagina stampabile con lo stesso template del "Listone"
-      try {
-        if (data) {
-          const win = window.open('/listone.html', '_blank');
-          if (win) {
-            const render = () => {
-              try {
-                (win as any).renderListone(data);
-              } catch {
-                // ignore (la pagina potrebbe non essere ancora pronta)
-              }
-            };
-            win.addEventListener('load', render);
-            setTimeout(render, 400);
-            alert("PDF server non disponibile: si apre la versione stampabile. Usa Stampa → Salva come PDF.");
-            return;
-          }
-        }
-      } catch {
-        // ignore
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth - 20; // 10mm margin on each side
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      // Handle multi-page if content is too long
+      let heightLeft = imgHeight;
+      let position = 10; // 10mm top margin
+
+      pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - 20);
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight + 10;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
+        heightLeft -= (pdfHeight - 20);
       }
 
-      alert("Si è verificato un errore durante l'esportazione del PDF.");
+      pdf.save(`Listone_VVF_MILANO_${selectedDate}.pdf`);
+      
+      // Cleanup
+      document.body.removeChild(printContainer);
+    } catch (err) {
+      console.error("PDF Export Error:", err);
+      alert("Si è verificato un errore durante l'esportazione del PDF. Prova a ricaricare la pagina.");
     } finally {
       setIsPdfLoading(false);
     }
@@ -610,7 +648,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
 
         const getFullDisplayName = (opId: string | null, entrustedTo: string | null | undefined, fallback: string) => {
            if (!opId) return entrustedTo ? `AFFIDATO ${entrustedTo}` : '';
-           const op = operators.find(o => o.id === opId);
+           const op = MOCK_OPERATORS.find(o => o.id === opId);
            if (!op) return '';
            
            let name = op.name;
@@ -640,7 +678,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
           }
           for (let i = 0; i < req.qty; i++) {
             const assignedId = req.assignedIds?.[i];
-            const operator = assignedId ? operators.find(o => o.id === assignedId) : null;
+            const operator = assignedId ? MOCK_OPERATORS.find(o => o.id === assignedId) : null;
             const entrustedTo = req.entrustedGroups?.[i];
             const fullN = getFullDisplayName(assignedId, entrustedTo, label);
             rows.push({ q: operator ? operator.rank : label, n: fullN });
@@ -656,7 +694,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
         } else {
           for (let i = 0; i < vigReq.qty; i++) {
             const assignedId = vigReq.assignedIds?.[i];
-            const operator = assignedId ? operators.find(o => o.id === assignedId) : null;
+            const operator = assignedId ? MOCK_OPERATORS.find(o => o.id === assignedId) : null;
             const entrustedTo = vigReq.entrustedGroups?.[i];
             const fullN = getFullDisplayName(assignedId, entrustedTo, 'VIG');
             rows.push({ q: operator ? operator.rank : 'VIG', n: fullN });
@@ -670,7 +708,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
 
           for (let i = 0; i < req.qty; i++) {
             const assignedId = req.assignedIds?.[i];
-            const operator = assignedId ? operators.find(o => o.id === assignedId) : null;
+            const operator = assignedId ? MOCK_OPERATORS.find(o => o.id === assignedId) : null;
             const entrustedTo = req.entrustedGroups?.[i];
             const fullN = getFullDisplayName(assignedId, entrustedTo, 'ALT');
             if (fullN) rows.push({ q: operator ? operator.rank : 'ALT', n: fullN });
@@ -853,10 +891,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
       const newReqs = [...ev.requirements];
       const targetReq = { ...newReqs[reqIndex] };
       
-      const newAssigned = Array.isArray(targetReq.assignedIds)
-        ? [...targetReq.assignedIds]
-        : Array(targetReq.qty).fill(null);
-      while (newAssigned.length < targetReq.qty) newAssigned.push(null);
+      const newAssigned = [...targetReq.assignedIds];
       newAssigned[slotIndex] = operatorId;
       targetReq.assignedIds = newAssigned;
       
@@ -903,10 +938,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
       targetReq.entrustedGroups = newEntrusted;
       
       // Quando si passa la gestione, resettiamo per permettere al subentrante di scegliere.
-      const newAssigned = Array.isArray(targetReq.assignedIds)
-        ? [...targetReq.assignedIds]
-        : Array(targetReq.qty).fill(null);
-      while (newAssigned.length < targetReq.qty) newAssigned.push(null);
+      const newAssigned = [...targetReq.assignedIds];
       newAssigned[slotIndex] = null;
       targetReq.assignedIds = newAssigned;
       
@@ -1099,7 +1131,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
                         {displayEvents.map(ev => (
                           <button 
                             key={ev.id}
-                            onClick={() => { openRapportoPresenza(ev, operators); setShowReportMenu(false); }}
+                            onClick={() => { openRapportoPresenza(ev); setShowReportMenu(false); }}
                             className="w-full text-left px-3 py-3 rounded-xl hover:bg-[#720000] hover:text-white group transition-all"
                           >
                              <div className="flex flex-col">
@@ -1162,7 +1194,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
           <EventCard 
             key={event.id} 
             event={event} 
-            operators={operators}
             role={role}
             dayApproved={dayApprovedState}
             isExpanded={expandedIds.includes(event.id)}
@@ -1190,7 +1221,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
           assignedIds={events.find(e => e.id === assignmentModal.eventId)?.requirements[assignmentModal.reqIndex].assignedIds || []}
           slotIndex={assignmentModal.slotIndex}
           events={events}
-          operators={operators}
           allCalculatedHours={operatorsCalculatedHours}
         />
       )}
@@ -1221,7 +1251,6 @@ const getHeaderStyles = (type: VigilanceType | undefined) => {
 
 const EventCard: React.FC<{
   event: OperationalEvent;
-  operators: Operator[];
   role: UserRole;
   dayApproved: boolean;
   isExpanded: boolean;
@@ -1233,7 +1262,7 @@ const EventCard: React.FC<{
   completionPercent: number;
   licenseAlert: string | null;
   allCalculatedHours: Record<string, number>;
-}> = ({ event, operators, role, dayApproved, isExpanded, onToggle, onOpenAssignment, onRemoveAssignment, onDeleteRequest, onEdit, completionPercent, licenseAlert, allCalculatedHours }) => {
+}> = ({ event, role, dayApproved, isExpanded, onToggle, onOpenAssignment, onRemoveAssignment, onDeleteRequest, onEdit, completionPercent, licenseAlert, allCalculatedHours }) => {
   const currentCompilatoreGroup = role.startsWith('COMPILATORE') ? role.split('_')[1] : null;
   const isCompilatore = !!currentCompilatoreGroup;
   const isRedattore = role === 'REDATTORE';
@@ -1308,8 +1337,8 @@ const EventCard: React.FC<{
         {event.requirements.map((req, reqIdx) => {
           if (req.qty === 0) return null; 
           return Array.from({ length: req.qty }).map((_, unitIdx) => {
-            const assignedId = req.assignedIds?.[unitIdx] ?? null;
-            const operator = assignedId ? operators.find(o => o.id === assignedId) : null;
+            const assignedId = req.assignedIds[unitIdx];
+            const operator = assignedId ? MOCK_OPERATORS.find(o => o.id === assignedId) : null;
             const entrustedTo = req.entrustedGroups?.[unitIdx];
             const slotOwner = entrustedTo || (priorityChain ? priorityChain[0] : 'A');
             const ownerIdx = priorityChain.indexOf(slotOwner);
@@ -1464,9 +1493,9 @@ const TriangleAlertIcon = ({ className }: { className?: string }) => (
 const AssignmentPopup: React.FC<{
   eventId: string; roleName: string; userRole: UserRole; onClose: () => void;
   onAssign: (id: string) => void; onEntrust: (currentOwner: string) => void; onRevokeEntrust: () => void;
-  assignedIds: (string | null)[]; slotIndex: number; events: OperationalEvent[]; operators: Operator[];
+  assignedIds: (string | null)[]; slotIndex: number; events: OperationalEvent[];
   allCalculatedHours: Record<string, number>;
-}> = ({ eventId, roleName, userRole, onClose, onAssign, onEntrust, onRevokeEntrust, assignedIds, slotIndex, events, operators, allCalculatedHours }) => {
+}> = ({ eventId, roleName, userRole, onClose, onAssign, onEntrust, onRevokeEntrust, assignedIds, slotIndex, events, allCalculatedHours }) => {
   const [search, setSearch] = useState('');
   const [specFilters, setSpecFilters] = useState<string[]>([]);
   const [showSpecDropdown, setShowSpecDropdown] = useState(false);
@@ -1495,7 +1524,7 @@ const AssignmentPopup: React.FC<{
     const assignments = new Map<string, OperationalEvent[]>();
     events.filter(ev => ev.date === date).forEach(ev => {
       ev.requirements.forEach(req => {
-        (req.assignedIds || []).forEach(id => {
+        req.assignedIds.forEach(id => {
           if (id) {
             const list = assignments.get(id) || [];
             assignments.set(id, [...list, ev]);
@@ -1528,7 +1557,7 @@ const AssignmentPopup: React.FC<{
   const pool = useMemo(() => {
     const validSubgroups = new Set([...standard, ...extra]);
 
-    let result = operators.filter(op => op.qualification === roleName && op.available);
+    let result = MOCK_OPERATORS.filter(op => op.qualification === roleName && op.available);
     
     result = result.filter(op => 
       standard.some(s => s.startsWith(op.group)) || 
@@ -1577,7 +1606,7 @@ const AssignmentPopup: React.FC<{
       return 0;
     });
     return result;
-  }, [operators, roleName, search, userGroup, standard, extra, specFilters, sedePopupFilter, patenteFilter, sortConfig, allCalculatedHours]);
+  }, [roleName, search, userGroup, standard, extra, specFilters, sedePopupFilter, patenteFilter, sortConfig, allCalculatedHours]);
 
   const toggleSpecFilter = (spec: string) => {
     setSpecFilters(prev => 
