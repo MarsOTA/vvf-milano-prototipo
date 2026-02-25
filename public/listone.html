@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Listone Servizi del Giorno</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm 10mm 20mm 10mm;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.3;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Header repeated on every page */
+        #header-template {
+            display: none; /* Hidden in browser, used by Puppeteer */
+        }
+
+        .header-content {
+            width: 100%;
+            border-bottom: 1px solid #000;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            font-size: 8pt;
+            font-weight: bold;
+        }
+
+        .ministero-info {
+            text-align: center;
+            flex: 1;
+        }
+
+        .ministero-info div {
+            margin-bottom: 2px;
+        }
+
+        .page-numbering {
+            text-align: right;
+            width: 100px;
+        }
+
+        /* Service Block */
+        .servizio-block {
+            margin-bottom: 20px;
+            border: 1px solid #000;
+            padding: 10px;
+            page-break-inside: avoid;
+        }
+
+        .servizio-header {
+            background-color: #f0f0f0;
+            padding: 5px;
+            border-bottom: 1px solid #000;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 11pt;
+        }
+
+        .servizio-info-line {
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+            font-style: italic;
+        }
+
+        .servizio-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 10px;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+            font-size: 9pt;
+        }
+
+        .detail-item b {
+            display: block;
+            font-size: 7pt;
+            text-transform: uppercase;
+            color: #666;
+        }
+
+        .vigilanza-banner {
+            background-color: #000;
+            color: #fff;
+            text-align: center;
+            padding: 3px;
+            font-weight: bold;
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 15px;
+        }
+
+        /* Operators Table */
+        table.operatori-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+        }
+
+        table.operatori-table th {
+            text-align: left;
+            font-size: 8pt;
+            text-transform: uppercase;
+            border-bottom: 1px solid #000;
+            padding: 3px;
+        }
+
+        table.operatori-table td {
+            padding: 4px 3px;
+            border-bottom: 1px dotted #ccc;
+            font-size: 9pt;
+        }
+
+        .durata-totale {
+            text-align: right;
+            font-weight: bold;
+            margin-top: 8px;
+            font-size: 10pt;
+        }
+
+        /* Utilities */
+        .text-uppercase { text-transform: uppercase; }
+        
+        /* Print specific */
+        @media print {
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Content will be injected here by renderListone -->
+    </div>
+
+    <script>
+        function renderListone(data) {
+            const app = document.getElementById('app');
+            
+            // Sort services by time
+            const sortedServizi = [...data.servizi].sort((a, b) => {
+                return a.orario_intervento.localeCompare(b.orario_intervento);
+            });
+
+            let html = '';
+
+            // Manual Header for the first page (Puppeteer will handle subsequent ones)
+            // But for simplicity in this template, we'll just render the list
+            
+            sortedServizi.forEach(s => {
+                html += `
+                <div class="servizio-block">
+                    <div class="servizio-header">
+                        ${s.manifestazione} ${s.committente ? '- ' + s.committente : ''}
+                    </div>
+                    <div class="servizio-info-line">
+                        ${s.luogo} - ${s.richiedente} - ${s.manifestazione}
+                    </div>
+                    
+                    <div class="servizio-details-grid">
+                        <div class="detail-item">
+                            <b>Data Inizio</b>
+                            ${formatDate(s.data_inizio)} ${s.ora_inizio}
+                        </div>
+                        <div class="detail-item">
+                            <b>Data Fine</b>
+                            ${formatDate(s.data_fine)} ${s.ora_fine}
+                        </div>
+                        <div class="detail-item">
+                            <b>Intervento</b>
+                            ${formatDate(s.data_intervento)} ${s.orario_intervento}
+                        </div>
+                        <div class="detail-item">
+                            <b>Progr./Anno</b>
+                            ${s.progr}/${s.anno}
+                        </div>
+                    </div>
+
+                    <div class="vigilanza-banner">
+                        <span>${s.tipo_servizio}</span>
+                        <span>STATO: ${s.stato} - TURNO: ${s.turno}</span>
+                    </div>
+
+                    <table class="operatori-table">
+                        <thead>
+                            <tr>
+                                <th>Cognome</th>
+                                <th>Nome</th>
+                                <th>Qualifica</th>
+                                <th>Sede</th>
+                                <th style="text-align: right">Ore</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${s.operatori.map(op => `
+                                <tr>
+                                    <td class="text-uppercase">${op.cognome}</td>
+                                    <td class="text-uppercase">${op.nome}</td>
+                                    <td>${op.qualifica}</td>
+                                    <td>${op.sede}</td>
+                                    <td style="text-align: right">${op.ore}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+
+                    <div class="durata-totale">
+                        Durata tot. ${s.durata_tot || calculateTotalHours(s.operatori)}
+                    </div>
+                </div>
+                `;
+            });
+
+            app.innerHTML = html;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const [y, m, d] = dateStr.split('-');
+            return `${d}/${m}/${y}`;
+        }
+
+        function calculateTotalHours(operatori) {
+            let totalMinutes = 0;
+            operatori.forEach(op => {
+                const [h, m] = op.ore.split(':').map(Number);
+                totalMinutes += (h * 60) + m;
+            });
+            const h = Math.floor(totalMinutes / 60);
+            const m = totalMinutes % 60;
+            return `${String(h).padStart(3, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
+        // Expose to window for Puppeteer to call
+        window.renderListone = renderListone;
+    </script>
+</body>
+</html>
