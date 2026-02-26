@@ -261,13 +261,15 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ count
 interface DashboardProps {
   events: OperationalEvent[];
   setEvents: React.Dispatch<React.SetStateAction<OperationalEvent[]>>;
+  operators: Operator[];
+  setOperators: React.Dispatch<React.SetStateAction<Operator[]>>;
   role: UserRole;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   onEditEvent: (event: OperationalEvent) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, selectedDate, setSelectedDate, onEditEvent }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operators, setOperators, role, selectedDate, setSelectedDate, onEditEvent }) => {
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [assignmentModal, setAssignmentModal] = useState<{ eventId: string, roleName: string, reqIndex: number, slotIndex: number } | null>(null);
   const [deleteRequest, setDeleteRequest] = useState<string[] | null>(null);
@@ -285,8 +287,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, s
   const operatorsCalculatedHours = useMemo(() => {
     const hoursMap: Record<string, number> = {};
     
-    // Inizializza con le ore di base dai mock
-    MOCK_OPERATORS.forEach(op => {
+    // Inizializza con le ore di base dai dati correnti
+    (operators || MOCK_OPERATORS).forEach(op => {
       hoursMap[op.id] = op.assignedHours;
     });
 
@@ -355,7 +357,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, s
 
     // Recupero operatori assegnati
     const assignedOperatorIds = ev.requirements.flatMap(r => r.assignedIds.filter(Boolean)) as string[];
-    const assignedOperators = assignedOperatorIds.map(id => MOCK_OPERATORS.find(o => o.id === id)).filter(Boolean) as Operator[];
+    const assignedOperators = assignedOperatorIds.map(id => (operators || MOCK_OPERATORS).find(o => o.id === id)).filter(Boolean) as Operator[];
 
     const hasValidDriver = assignedOperators.some(op => {
       const gradeStr = op.tipoPatente || '0';
@@ -525,7 +527,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, s
               </thead>
               <tbody>
                 ${ev.requirements.flatMap(req => req.assignedIds.filter(Boolean).map(id => {
-                  const op = MOCK_OPERATORS.find(o => o.id === id);
+                  const op = (operators || MOCK_OPERATORS).find(o => o.id === id);
                   if (!op) return '';
                   const nameParts = op.name.split(' ');
                   const cognome = nameParts[0];
@@ -648,7 +650,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, s
 
         const getFullDisplayName = (opId: string | null, entrustedTo: string | null | undefined, fallback: string) => {
            if (!opId) return entrustedTo ? `AFFIDATO ${entrustedTo}` : '';
-           const op = MOCK_OPERATORS.find(o => o.id === opId);
+           const op = (operators || MOCK_OPERATORS).find(o => o.id === opId);
            if (!op) return '';
            
            let name = op.name;
@@ -678,7 +680,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, s
           }
           for (let i = 0; i < req.qty; i++) {
             const assignedId = req.assignedIds?.[i];
-            const operator = assignedId ? MOCK_OPERATORS.find(o => o.id === assignedId) : null;
+            const operator = assignedId ? (operators || MOCK_OPERATORS).find(o => o.id === assignedId) : null;
             const entrustedTo = req.entrustedGroups?.[i];
             const fullN = getFullDisplayName(assignedId, entrustedTo, label);
             rows.push({ q: operator ? operator.rank : label, n: fullN });
@@ -694,7 +696,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, s
         } else {
           for (let i = 0; i < vigReq.qty; i++) {
             const assignedId = vigReq.assignedIds?.[i];
-            const operator = assignedId ? MOCK_OPERATORS.find(o => o.id === assignedId) : null;
+            const operator = assignedId ? (operators || MOCK_OPERATORS).find(o => o.id === assignedId) : null;
             const entrustedTo = vigReq.entrustedGroups?.[i];
             const fullN = getFullDisplayName(assignedId, entrustedTo, 'VIG');
             rows.push({ q: operator ? operator.rank : 'VIG', n: fullN });
@@ -708,7 +710,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, s
 
           for (let i = 0; i < req.qty; i++) {
             const assignedId = req.assignedIds?.[i];
-            const operator = assignedId ? MOCK_OPERATORS.find(o => o.id === assignedId) : null;
+            const operator = assignedId ? (operators || MOCK_OPERATORS).find(o => o.id === assignedId) : null;
             const entrustedTo = req.entrustedGroups?.[i];
             const fullN = getFullDisplayName(assignedId, entrustedTo, 'ALT');
             if (fullN) rows.push({ q: operator ? operator.rank : 'ALT', n: fullN });
@@ -1131,7 +1133,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, s
                         {displayEvents.map(ev => (
                           <button 
                             key={ev.id}
-                            onClick={() => { openRapportoPresenza(ev); setShowReportMenu(false); }}
+                            onClick={() => { openRapportoPresenza(ev, operators); setShowReportMenu(false); }}
                             className="w-full text-left px-3 py-3 rounded-xl hover:bg-[#720000] hover:text-white group transition-all"
                           >
                              <div className="flex flex-col">
@@ -1222,6 +1224,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, role, s
           slotIndex={assignmentModal.slotIndex}
           events={events}
           allCalculatedHours={operatorsCalculatedHours}
+          operators={operators}
         />
       )}
 
@@ -1495,7 +1498,8 @@ const AssignmentPopup: React.FC<{
   onAssign: (id: string) => void; onEntrust: (currentOwner: string) => void; onRevokeEntrust: () => void;
   assignedIds: (string | null)[]; slotIndex: number; events: OperationalEvent[];
   allCalculatedHours: Record<string, number>;
-}> = ({ eventId, roleName, userRole, onClose, onAssign, onEntrust, onRevokeEntrust, assignedIds, slotIndex, events, allCalculatedHours }) => {
+  operators: Operator[];
+}> = ({ eventId, roleName, userRole, onClose, onAssign, onEntrust, onRevokeEntrust, assignedIds, slotIndex, events, allCalculatedHours, operators }) => {
   const [search, setSearch] = useState('');
   const [specFilters, setSpecFilters] = useState<string[]>([]);
   const [showSpecDropdown, setShowSpecDropdown] = useState(false);
@@ -1557,7 +1561,7 @@ const AssignmentPopup: React.FC<{
   const pool = useMemo(() => {
     const validSubgroups = new Set([...standard, ...extra]);
 
-    let result = MOCK_OPERATORS.filter(op => op.qualification === roleName && op.available);
+    let result = (operators || MOCK_OPERATORS).filter(op => op.qualification === roleName && op.available);
     
     result = result.filter(op => 
       standard.some(s => s.startsWith(op.group)) || 
