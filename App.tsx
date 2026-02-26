@@ -6,8 +6,8 @@ import { StaffView } from './components/StaffView';
 import { TemplateCreator } from './components/TemplateCreator';
 import { OlympicGenerator } from './components/OlympicGenerator';
 import { LoginScreen } from './components/LoginScreen';
-import { ScreenType, UserRole, OperationalEvent } from './types';
-import { MOCK_EVENTS } from './constants';
+import { ScreenType, UserRole, OperationalEvent, Operator } from './types';
+import { MOCK_EVENTS, MOCK_OPERATORS } from './constants';
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -18,6 +18,18 @@ const App: React.FC = () => {
     return (localStorage.getItem('vvf_role') as UserRole) || 'COMPILATORE_A';
   });
   const [currentDate, setCurrentDate] = useState('');
+  const [operators, setOperators] = useState<Operator[]>(() => {
+    try {
+      const saved = localStorage.getItem('vvf_operators');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error("Error loading operators from localStorage", e);
+    }
+    return MOCK_OPERATORS;
+  });
   const [events, setEvents] = useState<OperationalEvent[]>(() => {
     try {
       const saved = localStorage.getItem('vvf_events');
@@ -42,6 +54,10 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('vvf_events', JSON.stringify(events));
   }, [events]);
+
+  useEffect(() => {
+    localStorage.setItem('vvf_operators', JSON.stringify(operators));
+  }, [operators]);
 
   useEffect(() => {
     localStorage.setItem('vvf_auth', isAuthenticated.toString());
@@ -127,13 +143,21 @@ const App: React.FC = () => {
           <Dashboard 
             events={events} 
             setEvents={setEvents} 
+            operators={operators}
+            setOperators={setOperators}
             role={currentRole} 
             selectedDate={selectedDate} 
             setSelectedDate={setSelectedDate}
             onEditEvent={handleStartEdit}
           />
         )}
-        {activeScreen === 'STAFF' && <StaffView events={events} />}
+        {activeScreen === 'STAFF' && (
+          <StaffView 
+            events={events} 
+            operators={operators}
+            setOperators={setOperators}
+          />
+        )}
         {activeScreen === 'CREAZIONE' && (
           <TemplateCreator 
             onSave={handleSaveEvent} 
