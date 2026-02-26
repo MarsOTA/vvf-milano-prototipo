@@ -1,5 +1,5 @@
 import { OperationalEvent, Operator } from '../types';
-import { loadOperators } from './storage';
+import { MOCK_OPERATORS } from '../constants';
 
 /**
  * Utility per generare il Rapporto Presenza (formato A4)
@@ -16,7 +16,7 @@ const escapeHTML = (str: string) => {
   }[m] || m));
 };
 
-export const renderRapportoPresenza = (event: OperationalEvent, operators?: Operator[]): string => {
+export const renderRapportoPresenza = (event: OperationalEvent, operators: Operator[] = MOCK_OPERATORS): string => {
   const formatDate = (dateStr: string) => {
     const [y, m, d] = dateStr.split('-');
     return `${d}/${m}/${y}`;
@@ -34,15 +34,13 @@ export const renderRapportoPresenza = (event: OperationalEvent, operators?: Oper
     return Math.abs(hrs - Math.round(hrs)) < 1e-6 ? `${Math.round(hrs)}h.` : `${hrs.toFixed(1)}h.`;
   };
 
-  const operatorsToUse: Operator[] = operators && operators.length ? operators : loadOperators([]);
-
   const [startTime, endTime] = event.timeWindow.split(' - ').map(s => s.trim());
   const durationStr = calculateDurationStr(event.timeWindow);
 
   // Risoluzione dei nomi degli operatori assegnati
   const presenze = event.requirements.flatMap(req => 
     req.assignedIds.map((id, idx) => {
-      const op = operatorsToUse.find(o => o.id === id);
+      const op = (operators || MOCK_OPERATORS).find(o => o.id === id);
       const qualifica = op?.rank || req.role;
       return {
         subgroup: op?.subgroup || '---',
@@ -205,7 +203,7 @@ export const renderRapportoPresenza = (event: OperationalEvent, operators?: Oper
   `;
 };
 
-export const openRapportoPresenza = (event: OperationalEvent, operators?: Operator[]) => {
+export const openRapportoPresenza = (event: OperationalEvent, operators: Operator[] = MOCK_OPERATORS) => {
   const html = renderRapportoPresenza(event, operators);
   const win = window.open('', '_blank');
   if (win) {
