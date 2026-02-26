@@ -1191,25 +1191,52 @@ export const Dashboard: React.FC<DashboardProps> = ({ events, setEvents, operato
         </div>
       )}
 
-      <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-[repeat(auto-fill,380px)] gap-6 items-start transition-transform duration-500 bg-white md:bg-transparent" style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top left', width: `${100 / zoomLevel}%` }}>
-        {displayEvents.map(event => (
-          <EventCard 
-            key={event.id} 
-            event={event} 
-            role={role}
-            dayApproved={dayApprovedState}
-            isExpanded={expandedIds.includes(event.id)}
-            onToggle={() => setExpandedIds(prev => prev.includes(event.id) ? prev.filter(id => id !== event.id) : [...prev, event.id])}
-            onOpenAssignment={(roleName, reqIdx, slotIdx) => setAssignmentModal({ eventId: event.id, roleName, reqIndex: reqIdx, slotIndex: slotIdx })}
-            onRemoveAssignment={(reqIdx, slotIdx) => updateAssignment(event.id, reqIdx, slotIdx, null)}
-            onDeleteRequest={() => setDeleteRequest([event.id])}
-            onEdit={() => onEditEvent(event)}
-            completionPercent={getEventCompletion(event)}
-            licenseAlert={getLicenseAlert(event)}
-            allCalculatedHours={operatorsCalculatedHours}
-          />
-        ))}
-      </div>
+      <div
+  ref={gridRef}
+  className="grid grid-cols-1 md:grid-cols-[repeat(auto-fill,380px)] gap-6 items-start transition-transform duration-500 bg-white md:bg-transparent"
+  style={{
+    transform: `scale(${zoomLevel})`,
+    transformOrigin: 'top left',
+    width: `${100 / zoomLevel}%`,
+  }}
+>
+  {displayEvents.map((event) => (
+    <div
+      key={event.id}
+      className="relative z-10 hover:z-[75] focus-within:z-[75]"
+    >
+      <EventCard
+        event={event}
+        role={role}
+        dayApproved={dayApprovedState}
+        isExpanded={expandedIds.includes(event.id)}
+        onToggle={() =>
+          setExpandedIds((prev) =>
+            prev.includes(event.id)
+              ? prev.filter((id) => id !== event.id)
+              : [...prev, event.id]
+          )
+        }
+        onOpenAssignment={(roleName, reqIdx, slotIdx) =>
+          setAssignmentModal({
+            eventId: event.id,
+            roleName,
+            reqIndex: reqIdx,
+            slotIndex: slotIdx,
+          })
+        }
+        onRemoveAssignment={(reqIdx, slotIdx) =>
+          updateAssignment(event.id, reqIdx, slotIdx, null)
+        }
+        onDeleteRequest={() => setDeleteRequest([event.id])}
+        onEdit={() => onEditEvent(event)}
+        completionPercent={getEventCompletion(event)}
+        licenseAlert={getLicenseAlert(event)}
+        allCalculatedHours={operatorsCalculatedHours}
+      />
+    </div>
+  ))}
+</div>
 
       {assignmentModal && (
         <AssignmentPopup 
