@@ -1,12 +1,18 @@
 import { EventStatus, OperationalEvent, Operator } from './types';
 
 export const ALL_SEDI = [
-  "SEDE CENTRALE",
-  "DISTACCAMENTO RHO",
-  "DISTACCAMENTO SESTO",
-  "DISTACCAMENTO GORGONZOLA",
-  "DISTACCAMENTO ABBIATEGRASSO",
-  "DISTACCAMENTO LEGNANO"
+  "Legnano",
+  "Centrale",
+  "Sesto San Giovanni",
+  "Sardegna",
+  "Rho",
+  "Darwin",
+  "Gorgonzola",
+  "Milano (Aeroportuale)",
+  "Marcello",
+  "Cuoco",
+  "Nucleo Sommozzatori",
+  "Campo Base Esercitazioni"
 ];
 
 export const ALL_PATENTI = [
